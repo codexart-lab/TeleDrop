@@ -21,8 +21,8 @@ Images are downloaded locally first, then uploaded to Telegram as actual file da
 
 1. Clone the repository *(replace with your actual repo URL)*:
 ```bash
-git clone https://github.com/yourusername/teledrop.git
-cd teledrop
+git clone https://github.com/codexart-lab/TeleDrop.git
+cd TeleDrop
 ```
 
 2. Create a virtual environment:
