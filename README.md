@@ -17,16 +17,25 @@ It supports both single URL uploads and bulk operations via text files, complete
 
 1. Clone the repository or download the files:
 ```bash
-git clone https://github.com/codexart-lab/TeleDrop.git
-cd TeleDrop
+git clone https://github.com/yourusername/teledrop.git
+cd teledrop
 ```
 
-2. Install the required Python dependencies:
+2. Create and activate a virtual environment:
+```bash
+python3 -m venv venv
+
+source venv/bin/activate      # Linux / macOS
+venv\Scripts\activate         # Windows
+```
+   *You'll see `(venv)` appear in your terminal prompt when it's active. Every new terminal session, re-run the `source`/`venv\Scripts\activate` line before using `python teledrop.py` — activation doesn't persist between sessions.*
+
+3. Install the required Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Edit `config.json` with your bot token and chat ID:
+4. Edit `config.json` with your bot token and chat ID:
 ```bash
 nano config.json      # Linux / macOS
 notepad config.json   # Windows
