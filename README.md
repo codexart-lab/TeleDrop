@@ -17,8 +17,8 @@ It supports both single URL uploads and bulk operations via text files, complete
 
 1. Clone the repository or download the files:
 ```bash
-git clone https://github.com/yourusername/teledrop.git
-cd teledrop
+git clone https://github.com/codexart-lab/TeleDrop.git
+cd TeleDrop
 ```
 
 2. Install the required Python dependencies:
