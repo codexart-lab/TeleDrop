@@ -1,72 +1,90 @@
 # TeleDrop
 
-Sends images to a Telegram chat/channel via URL, one at a time or in bulk from a text file.
+**TeleDrop** is a lightweight, CLI-based automation tool designed for cybersecurity professionals, OSINT investigators, and red teamers to seamlessly broadcast visual intelligence to Telegram channels and groups.
 
-## Files
+It supports both single URL uploads and bulk operations via text files, complete with custom Markdown captioning for contextual alerts.
 
-| File | Purpose |
-|---|---|
-| `teledrop.py` | The script |
-| `config.json` | Your bot token and chat ID |
-| `requirements.txt` | Python dependency (`requests`) |
-| `.gitignore` | Keeps `config.json` out of version control |
+## 🚀 Features
 
-## Setup
+- **Single & Bulk Drops:** Send one image or process hundreds via a `.txt` file.
+- **Custom Captions:** Add contextual Markdown-formatted captions to your visual intel.
+- **Rate Limit Protection:** Built-in delays, plus automatic wait-and-retry if Telegram returns a 429.
+- **Comment Support:** Ignore lines in your `.txt` file by starting them with `#`.
+- **Clean CLI:** Beautiful ASCII banner and structured console output.
 
+## 🛠️ Installation
+
+1. Clone the repository or download the files:
 ```bash
-pip install -r requirements.txt
+   git clone https://github.com/yourusername/teledrop.git
+   cd teledrop
 ```
 
-Edit `config.json`, replacing both placeholders:
+2. Install the required Python dependencies:
+```bash
+   pip install -r requirements.txt
+```
 
+## ⚙️ Configuration
+
+Before running the tool, set your Telegram Bot Token and Chat ID. TeleDrop checks these sources in priority order — the first one it finds wins:
+
+1. **`--token` / `--chat-id` CLI flags**
+2. **`config.json`** — edit the two placeholder values:
 ```json
 {
-  "bot_token": "123456789:AAExampleTokenFromBotFather",
-  "chat_id": "-1001234567890"
+  "bot_token": "YOUR_BOT_TOKEN_HERE",
+  "chat_id": "YOUR_CHAT_ID_HERE"
 }
 ```
+3. **`TELEDROP_BOT_TOKEN` / `TELEDROP_CHAT_ID` environment variables**
 
-- `bot_token` — from [@BotFather](https://t.me/BotFather) on Telegram.
-- `chat_id` — your user ID, or a channel/group ID (negative number for groups/channels). Get it by messaging [@userinfobot](https://t.me/userinfobot) or checking your channel's admin API.
+Get a Bot Token from [@BotFather](https://t.me/BotFather). Chat ID can be your Channel username (e.g., `@my_channel`) or the numeric Group/Channel ID.
+   * *Note: The bot must be added as an Admin in channels to post messages.*
 
-## Usage
+*(OPSEC Tip: `config.json` is already listed in `.gitignore` — leave it there, and never hardcode credentials directly in `teledrop.py`.)*
 
-Single image:
+## 💻 Usage
+
+### Basic Help
 ```bash
-python teledrop.py "https://example.com/image.jpg"
+python teledrop.py -h
 ```
 
-Bulk, from a text file (one URL per line, `#` for comments):
+### Single Image Drop
 ```bash
-python teledrop.py urls.txt
+python teledrop.py "https://example.com/screenshot.png"
 ```
 
-With a caption (Markdown supported — bold, italic, etc.):
+### Single Image with Custom Caption
 ```bash
-python teledrop.py urls.txt -c "*New drop* incoming"
+python teledrop.py "https://example.com/screenshot.png" -c "**[ALERT]** New C2 Infrastructure Detected. See attached screenshot."
 ```
 
-## Credential resolution order
+### Bulk Drop via Text File
+Create a `urls.txt` file:
+```text
+# OSINT Batch 1
+https://example.com/img1.png
+https://example.com/img2.jpg
 
-Highest priority wins:
+# OSINT Batch 2
+https://i.imgur.com/abc123.png
+```
+Run the tool:
+```bash
+python teledrop.py urls.txt -c "Daily OSINT Drop - Batch 1"
+```
 
-1. `--token` / `--chat-id` CLI flags
-2. `config.json`
-3. `TELEDROP_BOT_TOKEN` / `TELEDROP_CHAT_ID` environment variables
-4. none set → script exits with an error
+## 🔍 How to find your Chat ID
+If you need the numeric Chat ID for a private group:
+1. Add your bot to the group.
+2. Send a message in the group.
+3. Visit: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
+4. Look for the `"chat":{"id": -100XXXXXXXXXX}` value in the JSON response.
 
-You only need one of these. `config.json` is the default path for this setup.
+## ⚠️ Disclaimer
+This tool is intended for legitimate cybersecurity operations, OSINT reporting, and team communications. Ensure that your usage complies with Telegram's Terms of Service and your organization's security policies. Do not use this tool for spam or malicious distribution.
 
-## Behavior notes
-
-- **Rate limits (HTTP 429):** the script reads Telegram's `retry_after` value, waits, and retries automatically — up to 2 retries per image.
-- **Broken Markdown in captions:** if Telegram rejects the caption's formatting (`can't parse entities`), the script automatically resends that image as plain text rather than failing it outright.
-- **Malformed `config.json`:** the script exits immediately with the JSON parse error rather than silently falling through to env vars — a broken config should be visible, not masked.
-- 1 second delay between sends to avoid tripping Telegram's rate limits on bulk jobs.
-
-## Security
-
-`config.json` holds a live bot token. Treat it like a password:
-
-- It's already listed in `.gitignore` — don't remove that line.
-- If this token ever ends up in a public repo or chat log, revoke it immediately via @BotFather (`/revoke`) and issue a new one. A token in git history is not fixed by deleting the line in a later commit.
+## 📜 License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
