@@ -2,7 +2,7 @@
 
 TeleDrop is a command-line tool for uploading images to a Telegram channel or group through a Telegram bot. It supports sending a single image or bulk-uploading many at once from a text file, with optional captions.
 
-Images are downloaded locally first, then uploaded to Telegram as actual file data — not passed as a URL. This avoids the common `Bad Request: failed to get HTTP URL content` error that happens when the image host blocks Telegram's own server-side fetcher.
+Images are downloaded locally first, then uploaded to Telegram as actual file data — not passed as a URL. 
 
 ---
 
@@ -25,11 +25,16 @@ git clone https://github.com/yourusername/teledrop.git
 cd teledrop
 ```
 
-2. Create and activate a virtual environment:
+2. Create a virtual environment:
 ```bash
 python3 -m venv venv
-
+```
+Activate a virtual environment:
+```bash
 source venv/bin/activate      # Linux / macOS
+```
+For Windows 
+```bash
 venv\Scripts\activate         # Windows
 ```
 
