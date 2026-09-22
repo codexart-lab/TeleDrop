@@ -26,6 +26,9 @@ cd teledrop
 python3 -m venv venv
 
 source venv/bin/activate      # Linux / macOS
+```
+For Windows
+```bash 
 venv\Scripts\activate         # Windows
 ```
    *You'll see `(venv)` appear in your terminal prompt when it's active. Every new terminal session, re-run the `source`/`venv\Scripts\activate` line before using `python teledrop.py` — activation doesn't persist between sessions.*
