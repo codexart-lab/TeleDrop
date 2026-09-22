@@ -21,10 +21,12 @@ git clone https://github.com/yourusername/teledrop.git
 cd teledrop
 ```
 
-2. Create and activate a virtual environment:
+2. Create  a virtual environment:
 ```bash
 python3 -m venv venv
-
+```
+3. Activate a virtual environment:
+```bash
 source venv/bin/activate      # Linux / macOS
 ```
 For Windows
@@ -33,12 +35,12 @@ venv\Scripts\activate         # Windows
 ```
    *You'll see `(venv)` appear in your terminal prompt when it's active. Every new terminal session, re-run the `source`/`venv\Scripts\activate` line before using `python teledrop.py` — activation doesn't persist between sessions.*
 
-3. Install the required Python dependencies:
+4. Install the required Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Edit `config.json` with your bot token and chat ID:
+5. Edit `config.json` with your bot token and chat ID:
 ```bash
 nano config.json      # Linux / macOS
 notepad config.json   # Windows
@@ -61,7 +63,7 @@ Before running the tool, set your Telegram Bot Token and Chat ID. TeleDrop check
 Get a Bot Token from [@BotFather](https://t.me/BotFather). Chat ID can be your Channel username (e.g., `@my_channel`) or the numeric Group/Channel ID.
    * *Note: The bot must be added as an Admin in channels to post messages.*
 
-*(OPSEC Tip: `config.json` is already listed in `.gitignore` — leave it there, and never hardcode credentials directly in `teledrop.py`.)*
+*(Tip: `config.json` is already listed in `.gitignore` — leave it there, and never hardcode credentials directly in `teledrop.py`.)*
 
 ## 💻 Usage
 
