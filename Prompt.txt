@@ -1,0 +1,936 @@
+TeleDrop — Major Feature Upgrade
+
+You are an expert Python developer working directly inside the existing TeleDrop repository.
+
+Repository:
+https://github.com/codexart-lab/TeleDrop
+
+Your task is to upgrade the existing project by implementing these features:
+
+1. Live Batch Dashboard
+2. Upload History
+3. Summary Report
+4. Resume Interrupted Uploads
+5. Persistent Upload State
+6. Duplicate Detection
+
+⚠️ IMPORTANT RULES
+
+- First inspect the entire existing repository.
+- Understand the current architecture before modifying anything.
+- DO NOT rewrite the project unnecessarily.
+- Preserve all existing functionality.
+- Do not remove existing CLI commands/options unless absolutely necessary.
+- Maintain backward compatibility with existing usage.
+- Follow the existing coding style where practical.
+- Keep the application lightweight and CLI-first.
+- Do not introduce unnecessary external dependencies.
+- Handle errors gracefully.
+- Never lose upload progress because of a crash.
+- Never re-upload an item that has already been successfully uploaded.
+- Do not expose Telegram bot tokens/API credentials in logs.
+- Update README.md with all new functionality and examples.
+- Add tests for the new functionality.
+
+---
+
+1. LIVE BATCH DASHBOARD
+
+Create a real-time terminal dashboard while a batch is uploading.
+
+Example:
+
+╭────────────────────────────── TeleDrop ──────────────────────────────╮
+│ Batch: images.txt                                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ Progress   ████████████████████░░░░░░░░  67.4%                     │
+│                                                                     │
+│ Total      : 1000                                                   │
+│ Completed  : 674                                                    │
+│ Failed     : 8                                                      │
+│ Skipped    : 12                                                     │
+│ Pending    : 306                                                    │
+│                                                                     │
+│ Current    : image_675.jpg                                         │
+│ Status     : Uploading                                              │
+│ Speed      : 3.42 MB/s                                              │
+│ Uploaded   : 2.84 GB                                                │
+│                                                                     │
+│ Elapsed    : 00:18:42                                               │
+│ ETA        : 00:09:31                                               │
+│                                                                     │
+│ Last Error : None                                                   │
+╰─────────────────────────────────────────────────────────────────────╯
+
+The dashboard must update without continuously printing hundreds of lines.
+
+Requirements:
+
+- Progress percentage
+- Progress bar
+- Total items
+- Completed
+- Failed
+- Skipped
+- Pending
+- Current item
+- Current status
+- Upload speed
+- Total uploaded size
+- Elapsed time
+- Estimated remaining time
+- Last error
+- Retry count
+
+If terminal rendering becomes unavailable, automatically fall back to normal logging.
+
+Do not make the dashboard mandatory.
+
+Add:
+
+teledrop urls.txt --dashboard
+
+Optionally allow:
+
+teledrop urls.txt --no-dashboard
+
+The normal existing behavior should remain unchanged.
+
+---
+
+2. UPLOAD HISTORY
+
+Implement persistent upload history.
+
+Prefer SQLite over a large JSON history file.
+
+Create a local database such as:
+
+.teledrop/teledrop.db
+
+Do not store sensitive Telegram credentials in this database.
+
+Suggested schema:
+
+CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_url TEXT NOT NULL,
+    normalized_url TEXT,
+    filename TEXT,
+    file_size INTEGER,
+    sha256 TEXT,
+    status TEXT NOT NULL,
+    telegram_message_id TEXT,
+    telegram_chat_id TEXT,
+    error TEXT,
+    retry_count INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+Use appropriate indexes:
+
+CREATE INDEX IF NOT EXISTS idx_upload_url
+ON uploads(normalized_url);
+
+CREATE INDEX IF NOT EXISTS idx_upload_sha256
+ON uploads(sha256);
+
+CREATE INDEX IF NOT EXISTS idx_upload_status
+ON uploads(status);
+
+Possible statuses:
+
+pending
+downloading
+uploading
+completed
+failed
+skipped
+
+Add CLI commands:
+
+teledrop history
+
+teledrop history --limit 50
+
+teledrop history --status failed
+
+teledrop history --status completed
+
+teledrop history --clear
+
+Display history cleanly in the terminal.
+
+Example:
+
+TeleDrop Upload History
+
+DATE                 FILE              STATUS       SIZE
+2026-09-29 10:30     image001.jpg      completed    2.4 MB
+2026-09-29 10:31     image002.jpg      completed    1.8 MB
+2026-09-29 10:32     image003.jpg      failed       4.2 MB
+
+---
+
+3. RESUME INTERRUPTED UPLOADS
+
+This is one of the most important features.
+
+If the user starts:
+
+teledrop urls.txt
+
+with:
+
+1000 URLs
+
+and the process crashes after item 450:
+
+Completed: 450
+Pending: 550
+
+When the user runs:
+
+teledrop urls.txt
+
+again, TeleDrop must automatically detect previous progress.
+
+It should resume from pending items.
+
+Example:
+
+Previous batch detected.
+
+Total       : 1000
+Completed   : 450
+Failed      : 5
+Pending     : 545
+
+Resume batch? [Y/n]:
+
+If yes:
+
+Resuming from previous state...
+
+Do NOT simply rely on the item index.
+
+A URL may move within the input file.
+
+Use a stable identity such as:
+
+normalized URL
+
+and preferably:
+
+URL + file hash
+
+when available.
+
+A completed item must never be uploaded again.
+
+---
+
+4. STATE MANAGEMENT
+
+Implement crash-safe state persistence.
+
+SQLite should be the primary persistent state.
+
+Optionally also support:
+
+state.json
+
+for simple batch metadata.
+
+Example:
+
+{
+  "batch_id": "20260929-103012",
+  "input_file": "images.txt",
+  "total": 1000,
+  "completed": 450,
+  "failed": 5,
+  "skipped": 0,
+  "created_at": "2026-09-29T10:30:12",
+  "updated_at": "2026-09-29T10:52:41"
+}
+
+IMPORTANT:
+
+State updates must happen immediately after important operations.
+
+For example:
+
+download successful
+        ↓
+save state
+        ↓
+Telegram upload successful
+        ↓
+save completed state
+
+Never mark an item as completed before Telegram confirms a successful upload.
+
+Use atomic writes if JSON is used.
+
+For SQLite:
+
+connection.commit()
+
+after state transitions.
+
+Handle unexpected termination safely.
+
+---
+
+5. AUTOMATIC RESUME
+
+On startup:
+
+teledrop urls.txt
+
+check for unfinished batches.
+
+Show:
+
+Found unfinished batch
+
+Batch ID : 20260929-103012
+Input    : images.txt
+Progress : 450/1000
+Failed   : 5
+Pending  : 545
+
+[R] Resume
+[N] Start new batch
+[C] Cancel
+
+Also provide explicit commands:
+
+teledrop resume
+
+or:
+
+teledrop resume --batch-id 20260929-103012
+
+If practical, implement:
+
+teledrop batches
+
+to list unfinished/completed batches.
+
+---
+
+6. DUPLICATE DETECTION
+
+Implement duplicate detection at multiple levels.
+
+Level 1 — URL duplicate
+
+Normalize URLs before comparison.
+
+For example:
+
+https://example.com/image.jpg
+https://example.com/image.jpg
+
+must be treated as the same source.
+
+Create a normalization function that safely handles:
+
+- whitespace
+- trailing slash where appropriate
+- URL encoding
+- fragments
+- case normalization where appropriate
+
+Do NOT blindly modify URL query parameters because they may be meaningful.
+
+---
+
+Level 2 — File hash duplicate
+
+After downloading a file, calculate:
+
+SHA-256
+
+Example:
+
+hashlib.sha256(file_bytes).hexdigest()
+
+Before uploading:
+
+Calculate SHA256
+       ↓
+Search database
+       ↓
+Hash already uploaded?
+       ├── YES → Skip
+       └── NO  → Upload
+
+This catches cases where:
+
+image-a.jpg
+image-b.jpg
+
+are actually identical files.
+
+---
+
+7. DUPLICATE OPTIONS
+
+Add CLI options:
+
+--skip-duplicates
+
+and:
+
+--no-skip-duplicates
+
+Default behavior should be carefully chosen to preserve backward compatibility.
+
+Allow URL-only detection:
+
+--duplicate-mode url
+
+Hash-based detection:
+
+--duplicate-mode hash
+
+Both:
+
+--duplicate-mode both
+
+Recommended internal modes:
+
+none
+url
+hash
+both
+
+Example output:
+
+[SKIP] Duplicate URL:
+https://example.com/image.jpg
+
+or:
+
+[SKIP] Duplicate file:
+image2.jpg
+SHA256: a8f5...
+Already uploaded as:
+image1.jpg
+
+Count duplicates separately in the dashboard:
+
+Completed : 650
+Skipped   : 24
+Failed    : 3
+Pending   : 323
+
+---
+
+8. SUMMARY REPORT
+
+At the end of every batch, display a clean summary.
+
+Example:
+
+╭────────────── TeleDrop Summary ──────────────╮
+│                                               │
+│ Batch ID      : 20260929-103012              │
+│ Input         : images.txt                   │
+│                                               │
+│ Total         : 1000                          │
+│ Completed     : 948                           │
+│ Failed        : 12                            │
+│ Skipped       : 40                            │
+│                                               │
+│ Uploaded      : 4.82 GB                       │
+│ Duration      : 28m 42s                       │
+│ Avg Speed     : 2.81 MB/s                     │
+│                                               │
+│ Retries       : 17                            │
+│                                               │
+╰───────────────────────────────────────────────╯
+
+If failures exist:
+
+Failed items:
+────────────────────────────────────
+1. https://example.com/a.jpg
+   Error: HTTP 404
+
+2. https://example.com/b.jpg
+   Error: Telegram upload timeout
+
+Provide an option to save the report:
+
+--report report.json
+
+and optionally:
+
+--report report.txt
+
+JSON example:
+
+{
+  "batch_id": "20260929-103012",
+  "total": 1000,
+  "completed": 948,
+  "failed": 12,
+  "skipped": 40,
+  "uploaded_bytes": 5180000000,
+  "duration_seconds": 1722,
+  "retries": 17
+}
+
+---
+
+9. FAILED ITEM RETRY
+
+Make failed items resumable.
+
+For example:
+
+Total: 1000
+Completed: 950
+Failed: 10
+
+Allow:
+
+teledrop retry-failed
+
+or:
+
+teledrop retry-failed --batch-id BATCH_ID
+
+Only retry failed items.
+
+Do not re-upload successful items.
+
+Respect the existing retry and interval configuration.
+
+---
+
+10. BATCH IDENTIFICATION
+
+Every execution should have a unique batch ID.
+
+Example:
+
+20260929-103012-a7f3
+
+Store:
+
+batch_id
+input file
+created_at
+updated_at
+status
+total
+completed
+failed
+skipped
+
+Batch statuses:
+
+running
+completed
+completed_with_errors
+interrupted
+cancelled
+
+When the process receives:
+
+CTRL+C
+
+handle it gracefully:
+
+Stopping TeleDrop...
+
+Saving current state...
+
+✓ State saved.
+
+Batch can be resumed later.
+
+Do not corrupt the database.
+
+---
+
+11. CLI DESIGN
+
+Preserve current commands.
+
+Add commands/options in a clean way.
+
+Examples:
+
+teledrop urls.txt --dashboard
+
+teledrop urls.txt --skip-duplicates
+
+teledrop urls.txt --duplicate-mode both
+
+teledrop history
+
+teledrop batches
+
+teledrop resume
+
+teledrop retry-failed
+
+teledrop urls.txt --report report.json
+
+Make sure:
+
+teledrop --help
+
+is updated.
+
+---
+
+12. ARCHITECTURE
+
+Keep responsibilities separated.
+
+Suggested structure:
+
+teledrop/
+├── cli.py
+├── config.py
+├── downloader.py
+├── uploader.py
+├── database.py
+├── state.py
+├── dedup.py
+├── dashboard.py
+├── history.py
+├── reports.py
+├── batch.py
+└── utils.py
+
+Do not force this exact structure if the repository already has a better architecture.
+
+Important principle:
+
+CLI
+ │
+ ├── Batch Manager
+ │      │
+ │      ├── State Manager
+ │      ├── Dedup Manager
+ │      ├── Downloader
+ │      └── Telegram Uploader
+ │
+ ├── Dashboard
+ │
+ ├── History
+ │
+ └── Reports
+
+---
+
+13. TESTING
+
+Add tests for:
+
+State
+
+- Create batch
+- Update batch
+- Mark item completed
+- Mark item failed
+- Resume interrupted batch
+- Handle Ctrl+C
+- Handle corrupted JSON if JSON is used
+
+Duplicate detection
+
+- Duplicate URL
+- Different URL with same file hash
+- Same URL with different query parameters
+- Multiple duplicate entries
+
+Resume
+
+Test:
+
+1000 items
+450 completed
+
+Expected:
+
+550 remaining
+
+Ensure the first 450 are NOT uploaded again.
+
+Reports
+
+Verify:
+
+- Total
+- Completed
+- Failed
+- Skipped
+- Bytes
+- Duration
+- Retry count
+
+Database
+
+Test:
+
+- Creation
+- Inserts
+- Updates
+- Queries
+- Indexes
+- Restart persistence
+
+---
+
+14. PERFORMANCE
+
+The implementation must remain efficient with large files:
+
+1,000 URLs
+10,000 URLs
+100,000 URLs
+
+Do not load huge files completely into memory unnecessarily.
+
+For SHA-256:
+
+DO NOT read a multi-GB file into memory.
+
+Use streaming/chunked hashing:
+
+with open(path, "rb") as f:
+    while chunk := f.read(1024 * 1024):
+        sha256.update(chunk)
+
+Use efficient database queries.
+
+---
+
+15. SECURITY
+
+Never store:
+
+- Telegram bot token
+- API credentials
+- Authorization headers
+- Cookies
+
+inside upload history.
+
+Never print secrets in error messages.
+
+Sanitize URLs and filenames when displaying them.
+
+Avoid command injection through filenames or URLs.
+
+---
+
+16. README UPDATE
+
+Update README.md with:
+
+Features
+
+Add:
+
+- Live dashboard
+- Upload history
+- Resume support
+- Persistent state
+- Duplicate detection
+- Batch management
+- Summary reports
+- Failed upload retry
+
+Add installation instructions.
+
+Add usage examples.
+
+Add CLI reference.
+
+Add database/state location.
+
+Add troubleshooting section.
+
+Add migration/backward compatibility notes if necessary.
+
+---
+
+17. IMPLEMENTATION WORKFLOW
+
+Follow this exact workflow:
+
+Step 1
+
+Inspect the entire repository.
+
+Step 2
+
+Identify:
+
+- Entry point
+- Existing CLI parser
+- Telegram upload implementation
+- URL processing
+- Retry system
+- Configuration
+- Existing dependencies
+- Existing tests
+
+Step 3
+
+Create an implementation plan.
+
+Step 4
+
+Implement database/state layer.
+
+Step 5
+
+Implement batch manager.
+
+Step 6
+
+Implement resume functionality.
+
+Step 7
+
+Implement duplicate detection.
+
+Step 8
+
+Implement dashboard.
+
+Step 9
+
+Implement history commands.
+
+Step 10
+
+Implement reports.
+
+Step 11
+
+Implement retry-failed.
+
+Step 12
+
+Update README.
+
+Step 13
+
+Run formatting/linting.
+
+Step 14
+
+Run the complete test suite.
+
+Step 15
+
+Run realistic manual tests.
+
+---
+
+18. FINAL VERIFICATION
+
+Before finishing, verify this scenario:
+
+Create:
+
+urls.txt
+
+with:
+
+1000 URLs
+
+Start:
+
+teledrop urls.txt --dashboard --duplicate-mode both
+
+Allow approximately 450 items to complete.
+
+Terminate the application.
+
+Run:
+
+teledrop urls.txt --dashboard
+
+Expected:
+
+Previous batch detected.
+
+Completed : 450
+Pending   : 550
+
+Resuming...
+
+The application must NOT upload the first 450 again.
+
+Then introduce:
+
+20 duplicate URLs
+
+Expected:
+
+Completed : ...
+Skipped   : 20
+
+Finally verify:
+
+teledrop history
+
+and:
+
+teledrop batches
+
+and verify that the final summary correctly reports:
+
+Total
+Completed
+Failed
+Skipped
+Retries
+Uploaded bytes
+Duration
+Average speed
+
+---
+
+19. GIT
+
+After implementation:
+
+1. Show changed files.
+2. Show important architectural changes.
+3. Run tests.
+4. Fix all failures.
+5. Do not commit automatically unless explicitly requested.
+6. Provide the exact commands needed to review and commit the changes.
+
+Example:
+
+git status
+git diff
+git add .
+git commit -m "feat: add batch dashboard, resume, history and deduplication"
+
+FINAL REQUIREMENT
+
+Do not just provide pseudocode.
+
+Actually modify the existing TeleDrop codebase.
+
+Use the repository's existing implementation wherever possible.
+
+The final implementation must be production-quality, backward-compatible, crash-safe, and suitable for large Telegram upload batches.
